@@ -39,7 +39,7 @@ public class MakarShevchenko {
         int exitX, exitY;
         Solver solver;
 
-        static String FITCH = "fitch";
+        static String FILCH = "fitch";
         static String CAT = "cat";
         static String ACTOR = "actor";
         static String BOOK = "book";
@@ -74,12 +74,12 @@ public class MakarShevchenko {
         }
 
         public void findPath() {
-            this.solver.solve(this.initMap, new Pair<Integer, Integer>(initActorX, initActorY),
-                    new Pair<Integer, Integer>(exitX, exitY), actorPerception);
+
         }
 
         public void printOutput() {
-            Vector<Object> outputValues = this.solver.getOutputValues();
+            Vector<Object> outputValues = this.solver.solve(this.initMap, new Pair<>(initActorX, initActorY),
+                                                            new Pair<>(exitX, exitY), actorPerception);
             String name = (String) outputValues.get(0);
             boolean isSuccess = (boolean) outputValues.get(1);
             Vector<Pair<Integer, Integer>> path = (Vector<Pair<Integer, Integer>>) outputValues.get(2);
@@ -144,7 +144,7 @@ public class MakarShevchenko {
                     else if (cell.contains(CAT)) {
                         System.out.printf("%s", cat);
                     }
-                    else if (cell.contains(FITCH)) {
+                    else if (cell.contains(FILCH)) {
                         System.out.printf("%s", fitch);
                     }
                     else if (cell.isUnderPerception) {
@@ -197,7 +197,7 @@ public class MakarShevchenko {
                         if (item.equals(EXIT)) {
                             hasExit = true;
                         }
-                        if (item.equals(CAT) || item.equals(FITCH)) {
+                        if (item.equals(CAT) || item.equals(FILCH)) {
                             hasInspector = true;
                         }
                         if (item.equals(BOOK)) {
@@ -221,117 +221,289 @@ public class MakarShevchenko {
             return true;
         }
 
-        private static class ActorAttributes {
-            boolean hasBook = false;
-            boolean hasCloak = false;
-            boolean isAlive = true;
-            boolean reachedExit = false;
-
-            private void activateCell(Map.Cell cell) {
-                if (cell.contains(BOOK)) {
-                    this.hasBook = true;
-                }
-                if (cell.contains(CLOAK)) {
-                    this.hasCloak = true;
-                }
-                if (!hasCloak && cell.isUnderPerception || cell.contains(FITCH) || cell.contains(CAT)) {
-                    this.isAlive = false;
-                }
-                if (cell.contains(EXIT)) {
-                    this.reachedExit = true;
-                }
-            }
-        }
-
         public interface Solver {
-            void solve(Map map, Pair<Integer, Integer> initActorPos, Pair<Integer, Integer> exitPos, int perception);
-            Vector<Object> getOutputValues();  // Output: [String name, boolean isSuccess, \
-                                               // Vector<Pair<Integer, Integer>> path, Long spentTimeNs]
+            Vector<Object> solve(Map map, Pair<Integer, Integer> initActorPos, Pair<Integer, Integer> exitPos,
+                                 int perception); // Output: [String name, boolean isSuccess, \
+                                                  // Vector<Pair<Integer, Integer>> path, Long spentTimeNs]
         }
 
         public static class AStarSolver implements Solver {
             private int stepSize;
-            private Map map;
-            private ActorAttributes actorAttributes;
-            private Long spentTimeNs;
-            private Vector<Pair<Integer, Integer>> path = new Vector<>();
-            private Vector<Vector<Pair<Integer, Integer>>> parentCell;
 
             public AStarSolver(int stepSize) {
                 this.stepSize = stepSize;
             }
 
             @Override
-            public void solve(Map initMap, Pair<Integer, Integer> initActorPos, Pair<Integer, Integer> exitPos,
+            public Vector<Object> solve(Map initMap, Pair<Integer, Integer> initActorPos, Pair<Integer, Integer> exitPos,
                               int perception) {
+                // Output: [String name, boolean isSuccess, \
+                // Vector<Pair<Integer, Integer>> path, Long spentTimeNs]
+
                 Instant previous = Instant.now();
-                this.map = initMap.clone();
-                this.parentCell = new Vector<>();
-                for (int y = 0; y < this.map.sizeY; y++) {
-                    Vector<Pair<Integer, Integer>> mapRow = new Vector<>();
-                    for (int x = 0; x < this.map.sizeX; x++) {
-                        mapRow.add(new Pair<Integer, Integer>());
-                    }
-                    this.parentCell.add(mapRow);
-                }
-                this.calculateHeuristics(exitPos);
-                Pair<Integer, Integer> actorCoords = initActorPos;
-                this.path.add(actorCoords);
 
-                this.actorAttributes = new ActorAttributes();
-                Map.Cell initCell = this.map.getCell(actorCoords.first, actorCoords.second);
-                initCell.distance = 0;
-                this.actorAttributes.activateCell(initCell);
-                this.map.visitCell(actorCoords.first, actorCoords.second, perception);
+                // init map
+                Map map = initMap.clone();
+                calculateHeuristics(exitPos, map);
 
-                while (this.actorAttributes.isAlive && !(this.actorAttributes.hasBook && this.actorAttributes.reachedExit)) {
-                    calculateDistanceToNeighbors(actorCoords);
-                    Pair<Integer, Integer> nextCoords = chooseNextStep(actorAttributes.hasCloak);
-                    if (nextCoords == null) {
-                        this.actorAttributes.isAlive = false;
-                        break;
-                    }
-                    actorCoords = nextCoords;
-                    Map.Cell nextCell = this.map.getCell((int) actorCoords.first, (int) actorCoords.second);
-                    this.actorAttributes.activateCell(nextCell);
-                    this.map.visitCell(actorCoords.first, actorCoords.second, perception);
-                    path.add(actorCoords);
+                // init -> try to find book or cloak
+                Vector<Object> objsToFind = new Vector<>();
+                objsToFind.add(CLOAK);
+                objsToFind.add(BOOK);
+                Vector<Object> isDead_path_resultMap = findPath(map, initActorPos, objsToFind, false,
+                                                                perception);
+                boolean isDead = (boolean) isDead_path_resultMap.elementAt(0);
+                Vector<Pair<Integer, Integer>> pathToBookOrCloak =
+                        (Vector<Pair<Integer, Integer>>) isDead_path_resultMap.elementAt(1);
+                map = (Map) isDead_path_resultMap.elementAt(2);
+
+                if (isDead) {
+                    // init, death
+                    Instant current = Instant.now();
+                    Long spentTimeNs = ChronoUnit.NANOS.between(previous, current);
+
+                    Vector<Object> result = new Vector<>();
+                    result.add("A*");
+                    result.add(false);
+                    result.add(pathToBookOrCloak);
+                    result.add(spentTimeNs);
+                    return result;
                 }
 
+                Pair<Integer, Integer> lastCellPos = pathToBookOrCloak.lastElement();
+                Map.Cell lastCell = map.getCell(lastCellPos);
+                if (lastCell.contains(CLOAK)) {
+                    // init, cloak -> try to find book
+                    objsToFind = new Vector<>();
+                    objsToFind.add(BOOK);
+                    isDead_path_resultMap = findPath(map, lastCellPos, objsToFind, true, perception);
+                    isDead = (boolean) isDead_path_resultMap.elementAt(0);
+                    Vector<Pair<Integer, Integer>> pathFromCloakToBook =
+                            (Vector<Pair<Integer, Integer>>) isDead_path_resultMap.elementAt(1);
+                    map = (Map) isDead_path_resultMap.elementAt(2);
+
+                    if (isDead) {
+                        // init, cloak, death
+                        Instant current = Instant.now();
+                        Long spentTimeNs = ChronoUnit.NANOS.between(previous, current);
+                        Vector<Pair<Integer, Integer>> path = new Vector<>();
+                        path.addAll(pathToBookOrCloak);
+                        pathFromCloakToBook.remove(0);
+                        path.addAll(pathFromCloakToBook);
+
+                        Vector<Object> result = new Vector<>();
+                        result.add("A*");
+                        result.add(false);
+                        result.add(path);
+                        result.add(spentTimeNs);
+                        return result;
+                    }
+
+                    lastCellPos = pathFromCloakToBook.lastElement();
+                    // init, cloak, book -> try to find exit
+                    objsToFind = new Vector<>();
+                    objsToFind.add(EXIT);
+                    isDead_path_resultMap = findPath(map, lastCellPos, objsToFind, true, perception);
+                    isDead = (boolean) isDead_path_resultMap.elementAt(0);
+                    Vector<Pair<Integer, Integer>> pathFromCloakBookToExit =
+                            (Vector<Pair<Integer, Integer>>) isDead_path_resultMap.elementAt(1);
+                    map = (Map) isDead_path_resultMap.elementAt(2);
+
+
+                    // init, cloak, book, exit
+                    Instant current = Instant.now();
+                    Long spentTimeNs = ChronoUnit.NANOS.between(previous, current);
+                    Vector<Pair<Integer, Integer>> path = new Vector<>();
+                    path.addAll(pathToBookOrCloak);
+                    pathFromCloakToBook.remove(0);
+                    path.addAll(pathFromCloakToBook);
+                    pathFromCloakBookToExit.remove(0);
+                    path.addAll(pathFromCloakBookToExit);
+
+                    Vector<Object> result = new Vector<>();
+                    result.add("A*");
+                    result.add(!isDead && map.getCell(path.lastElement()).contains(EXIT));
+
+                    result.add(path);
+                    result.add(spentTimeNs);
+                    return result;
+                }
+
+                lastCellPos = pathToBookOrCloak.lastElement();
+                // init, book -> try to find exit or cloak
+                objsToFind = new Vector<>();
+                objsToFind.add(EXIT);
+                objsToFind.add(CLOAK);
+                isDead_path_resultMap = findPath(map, lastCellPos, objsToFind, false, perception);
+                isDead = (boolean) isDead_path_resultMap.elementAt(0);
+                Vector<Pair<Integer, Integer>> pathFromBookToExitOrCloak =
+                        (Vector<Pair<Integer, Integer>>) isDead_path_resultMap.elementAt(1);
+                map = (Map) isDead_path_resultMap.elementAt(2);
+
+                lastCellPos = pathFromBookToExitOrCloak.lastElement();
+                lastCell = map.getCell(lastCellPos);
+                if (lastCell.contains(CLOAK)) {
+                    // init, book, cloak -> try to find exit
+                    objsToFind = new Vector<>();
+                    objsToFind.add(EXIT);
+                    isDead_path_resultMap = findPath(map, lastCellPos, objsToFind, false, perception);
+                    isDead = (boolean) isDead_path_resultMap.elementAt(0);
+                    Vector<Pair<Integer, Integer>> pathFromBookCloakToExit =
+                            (Vector<Pair<Integer, Integer>>) isDead_path_resultMap.elementAt(1);
+                    map = (Map) isDead_path_resultMap.elementAt(2);
+
+                    // init, book, cloak, exit or nothing
+                    Instant current = Instant.now();
+                    Long spentTimeNs = ChronoUnit.NANOS.between(previous, current);
+                    Vector<Pair<Integer, Integer>> path = new Vector<>();
+                    path.addAll(pathToBookOrCloak);
+                    path.addAll(pathFromBookToExitOrCloak);
+                    path.addAll(pathFromBookCloakToExit);
+
+                    Vector<Object> result = new Vector<>();
+                    result.add("A*");
+                    result.add(!isDead && map.getCell(path.lastElement()).contains(EXIT));
+                    result.add(path);
+                    result.add(spentTimeNs);
+                    return result;
+                }
+
+                // init, book, exit or nothing
                 Instant current = Instant.now();
-                this.spentTimeNs = ChronoUnit.NANOS.between(previous, current);
-            }
+                Long spentTimeNs = ChronoUnit.NANOS.between(previous, current);
+                Vector<Pair<Integer, Integer>> path = new Vector<>();
+                path.addAll(pathToBookOrCloak);
+                pathFromBookToExitOrCloak.remove(0);
+                path.addAll(pathFromBookToExitOrCloak);
 
-            @Override
-            public Vector<Object> getOutputValues() {
-                Vector<Object> result = new Vector<Object>();
+                Vector<Object> result = new Vector<>();
                 result.add("A*");
-                result.add(this.actorAttributes.isAlive);
-                result.add(this.path);
-                result.add(this.spentTimeNs);
+                result.add(!isDead && map.getCell(path.lastElement()).contains(EXIT));
+                result.add(path);
+                result.add(spentTimeNs);
                 return result;
             }
 
-            private void calculateDistanceToNeighbors(Pair<Integer, Integer> currentPosCoords) {
-                Map.Cell currentCell = map.getCell((int) currentPosCoords.first, (int) currentPosCoords.second);
-                int potentialDist = currentCell.distance + stepSize;
-                for (int y = (int) currentPosCoords.second - 1; y <= (int) currentPosCoords.second + 1; y++) {
-                    if (y >= 0 && y < map.sizeY) {
-                        for (int x = (int) currentPosCoords.first - 1; x <= (int) currentPosCoords.first + 1; x++) {
-                            if (x >= 0 && x < map.sizeX &&
-                                    !(x == (int) currentPosCoords.first && y == (int) currentPosCoords.second)) {
-                                Map.Cell cell = map.getCell(x, y);
-                                if (potentialDist < cell.distance) {
-                                    cell.distance = potentialDist;
-                                    this.parentCell.elementAt(y).setElementAt(currentPosCoords, x);
+            private Vector<Object> findPath(Map map, Pair<Integer, Integer> initPos, Vector<Object> objsToFind,
+                                            boolean hasCloak, int perception) {
+                // returns [boolean isDead, Vector<Pair<Integer, Integer>> path, Map resultMap] to first found obj from objsToFind
+                // implements Dijkstra search algorithm
+
+                Map resultMap = map.clone();
+                for (int y = 0; y < resultMap.sizeY; y++) {
+                    for (int x = 0; x < resultMap.sizeX; x++) {
+                        resultMap.getCell(x, y).distance = Map.Cell.INFINITELY_FAR;
+                    }
+                }
+                resultMap.getCell(initPos).distance = 0;
+
+                // map with parent
+                Vector<Vector<Pair<Integer, Integer>>> parentMap = new Vector<>();
+                for (int y = 0; y < resultMap.sizeY; y++) {
+                    Vector<Pair<Integer, Integer>> mapRow = new Vector<>();
+                    for (int x = 0; x < resultMap.sizeX; x++) {
+                        mapRow.add(null);
+                    }
+                    parentMap.add(mapRow);
+                }
+
+                // create a container with cells that could make further optimal path
+                Vector<Pair<Integer, Integer>> activeCellsCoords = new Vector<>();
+                activeCellsCoords.add(initPos);
+
+                // try to find objsToFind
+                Pair<Integer, Integer> activeCellCoords = this.popNextActiveCellCoords(activeCellsCoords, resultMap,
+                                                                                       hasCloak);
+                Map.Cell activeCell = resultMap.getCell(activeCellCoords);
+                // interact with cell
+                resultMap.visitCell(activeCellCoords, perception);
+                if (isActorDead(activeCell, hasCloak)) {
+                    // game over
+                    Vector<Pair<Integer, Integer>> path = reconstructPath(activeCellCoords, initPos, parentMap);
+                    Vector<Object> result = new Vector<>();
+                    result.add(true);
+                    result.add(path);
+                    result.add(resultMap);
+                    return result;
+                }
+
+                while (!activeCell.contains(objsToFind)) {
+                    // calculate distance to neighbors and update activeCells
+                    int potentialDist = activeCell.distance + stepSize;
+                    for (int y = activeCellCoords.second - 1; y <= activeCellCoords.second + 1; y++) {
+                        if (y >= 0 && y < resultMap.sizeY) {
+                            for (int x = activeCellCoords.first - 1; x <= activeCellCoords.first + 1; x++) {
+                                if (x >= 0 && x < resultMap.sizeX &&
+                                        !(x == activeCellCoords.first && y == activeCellCoords.second)) {
+                                    Map.Cell cell = resultMap.getCell(x, y);
+                                    if (potentialDist < cell.distance) {
+                                        cell.distance = potentialDist;
+                                        parentMap.elementAt(y).setElementAt(activeCellCoords, x);
+                                        activeCellsCoords.add(new Pair<>(x, y));
+                                    }
                                 }
                             }
                         }
                     }
+                    // choose next cell
+                    Pair<Integer, Integer> nextActiveCellCoords =
+                            popNextActiveCellCoords(activeCellsCoords, resultMap, hasCloak);
+                    if(nextActiveCellCoords == null) {
+                        // no more steps possible
+                        Vector<Pair<Integer, Integer>> path = reconstructPath(activeCellCoords, initPos, parentMap);
+                        Vector<Object> result = new Vector<>();
+                        result.add(false);
+                        result.add(path);
+                        result.add(resultMap);
+                        return result;
+                    }
+                    activeCellCoords = nextActiveCellCoords;
+                    activeCell = resultMap.getCell(activeCellCoords.first, activeCellCoords.second);
+                    // interact with next cell
+                    resultMap.visitCell(activeCellCoords, perception);
+                    if (isActorDead(activeCell, hasCloak)) {
+                        // game over
+                        Vector<Pair<Integer, Integer>> path = reconstructPath(activeCellCoords, initPos, parentMap);
+                        Vector<Object> result = new Vector<>();
+                        result.add(true);
+                        result.add(path);
+                        result.add(resultMap);
+                        return result;
+                    }
                 }
+
+                // success
+                Vector<Pair<Integer, Integer>> path = reconstructPath(activeCellCoords, initPos, parentMap);
+                Vector<Object> result = new Vector<>();
+                result.add(false);
+                result.add(path);
+                result.add(resultMap);
+                return result;
             }
 
-            private void calculateHeuristics(Pair<Integer, Integer> goalCoords) {
+            private Vector<Pair<Integer, Integer>> reconstructPath(Pair<Integer, Integer> endPos,
+                                                                   Pair<Integer, Integer> initPos,
+                                                                   Vector<Vector<Pair<Integer, Integer>>> parentMap) {
+                Vector<Pair<Integer, Integer>> reversedPath = new Vector<>();
+                reversedPath.add(endPos.clone());
+                Pair<Integer, Integer> currentPos = endPos;
+                while (!currentPos.equals(initPos)) {
+                    currentPos = parentMap.elementAt(currentPos.second).elementAt(currentPos.first);
+                    reversedPath.add(currentPos.clone());
+                }
+                Vector<Pair<Integer, Integer>> path = new Vector<>();
+                for (int i = reversedPath.size() - 1; i >= 0; i--) {
+                    path.add(reversedPath.elementAt(i));
+                }
+                return path;
+            }
+
+            private boolean isActorDead(Map.Cell currentCell, boolean hasCloak) {
+                return (currentCell.contains(FILCH) || currentCell.contains(CAT) ||
+                       (!hasCloak && currentCell.isUnderPerception));
+            }
+
+            private void calculateHeuristics(Pair<Integer, Integer> goalCoords, Map map) {
                 for (int y = 0; y < map.sizeY; y++) {
                     for (int x = 0; x < map.sizeX; x++) {
                         int dx = abs(x - (int) goalCoords.first);
@@ -342,26 +514,59 @@ public class MakarShevchenko {
                 }
             }
 
-            private Pair<Integer, Integer> chooseNextStep(boolean hasCloak) {
-                int minScore = Map.Cell.INFINITELY_FAR;
-                int minX = -1;
-                int minY = -1;
-                for (int y = 0; y < map.sizeY; y++) {
-                    for (int x = 0; x < map.sizeX; x++) {
-                        Map.Cell cell = map.getCell(x, y);
-                        if (!cell.isVisited && cell.isPossibleToVisit &&
-                            !(cell.isSeen && (cell.isUnderPerception && !hasCloak ||
-                                              cell.contains(FITCH) || cell.contains(CAT))) &&
-                            cell.score() < minScore) {
-                            minScore = cell.score();
-                            minX = x;
-                            minY = y;
+            private Pair<Integer, Integer> popNextActiveCellCoords(Vector<Pair<Integer, Integer>> activeCellsCoords,
+                                                                   Map map, boolean hasCloak) {
+                // return null if it is there is no active cells
+                // otherwise return coordinates of active cell with min score that guaranteed to be safe, otherwise -
+                // the cell that is undiscovered
+                if (activeCellsCoords.size() == 0) {
+                    return null;
+                }
+                int minSeenI = -1;
+                Pair<Integer, Integer> nextSeenActiveCellCoords = null;
+                int minSeenScore = Map.Cell.INFINITELY_FAR;
+                int minNotSeenI = -1;
+                Pair<Integer, Integer> nextNotSeenActiveCellCoords = null;
+                int minNotSeenScore = Map.Cell.INFINITELY_FAR;
+                for (int i = 0; i < activeCellsCoords.size(); i++) {
+                    Pair<Integer, Integer> activeCellCoords = activeCellsCoords.elementAt(i);
+                    Map.Cell activeCell = map.getCell(activeCellCoords.first, activeCellCoords.second);
+                    if (activeCell.isSeen) {
+                        if (!(activeCell.contains(FILCH) || activeCell.contains(CAT)) &&
+                            !(!hasCloak && activeCell.isUnderPerception) &&
+                            activeCell.score() < minSeenScore) {
+                            minSeenScore = activeCell.score();
+                            minSeenI = i;
+                            nextSeenActiveCellCoords = activeCellCoords;
+                        }
+                    }
+                    else {
+                        if (activeCell.score() < minNotSeenScore) {
+                            minNotSeenScore = activeCell.score();
+                            minNotSeenI = i;
+                            nextNotSeenActiveCellCoords = activeCellCoords;
                         }
                     }
                 }
-                if (minScore < Map.Cell.INFINITELY_FAR) {
-                    return new Pair<Integer, Integer>(minX, minY);
+                if (nextSeenActiveCellCoords != null) {
+                    activeCellsCoords.remove(minSeenI);
+                    return nextSeenActiveCellCoords;
                 }
+                else if(nextNotSeenActiveCellCoords != null) {
+                    activeCellsCoords.remove(minNotSeenI);
+                    return nextNotSeenActiveCellCoords;
+                }
+                return null;
+            }
+        }
+
+        public static class BacktrackingSolver implements Solver {
+
+            @Override
+            public Vector<Object> solve(Map map, Pair<Integer, Integer> initActorPos, Pair<Integer, Integer> exitPos,
+                                        int perception) {
+                // Output: [String name, boolean isSuccess, \
+                // Vector<Pair<Integer, Integer>> path, Long spentTimeNs]
                 return null;
             }
         }
@@ -402,7 +607,7 @@ public class MakarShevchenko {
                 scanner.close();
                 scanner1.close();
 
-                initMap.addEnemy(FITCH, 2, filchX, filchY);
+                initMap.addEnemy(FILCH, 2, filchX, filchY);
                 initMap.addEnemy(CAT, 1, catX, catY);
                 initMap.addItem(ACTOR, initActorX, initActorY);
                 initMap.addItem(BOOK, bookX, bookY);
@@ -465,6 +670,10 @@ public class MakarShevchenko {
                 return this.map.elementAt(y).elementAt(x);
             }
 
+            public Cell getCell(Pair<Integer, Integer> pos) {
+                return getCell(pos.first, pos.second);
+            }
+
             public Map clone() {
                 Map mapCopy = new Map(sizeY, sizeX);
                 for (int y = 0; y < sizeY; y++) {
@@ -479,21 +688,18 @@ public class MakarShevchenko {
             }
 
             public void visitCell(int x, int y, int perception) {
-                this.getCell(x, y).isVisited = true;
-                for (int y_ = y - 1; y_ <= y + 1; y_++) {
-                    if (y_ >= 0 && y_ < this.sizeY) {
-                        for (int x_ = x - 1; x_ <= x + 1; x_++) {
-                            if (x_ >= 0 && x_ < this.sizeX) {
-                                Cell cell = this.getCell(x_, y_);
-                                cell.isPossibleToVisit = true;
-                                if (!(x == x_ && y == y_) && perception == 1) {
-                                    cell.isSeen = true;
+                if (perception == 1) {
+                    for (int y_ = y - 1; y_ <= y + 1; y_++) {
+                        if (y_ >= 0 && y_ < this.sizeY) {
+                            for (int x_ = x - 1; x_ <= x + 1; x_++) {
+                                if (x_ >= 0 && x_ < this.sizeX) {
+                                    this.getCell(x_, y_).isSeen = true;
                                 }
                             }
                         }
                     }
                 }
-                if (perception == 2) {
+                else if (perception == 2) {
                     for (int i = -1; i <= 1; i++) {
                         int x_ = x + i;
                         if (x_ >= 0 && x_ < this.sizeX) {
@@ -519,14 +725,17 @@ public class MakarShevchenko {
                             }
                         }
                     }
+                    this.getCell(x, y).isSeen = true;
                 }
+            }
+
+            public void visitCell(Pair<Integer, Integer> pos, int perception) {
+                visitCell(pos.first, pos.second, perception);
             }
 
             private static class Cell {
                 public static int INFINITELY_FAR = 9999;
                 public boolean isUnderPerception = false;
-                public boolean isVisited = false;
-                public boolean isPossibleToVisit = false;
                 public boolean isSeen = false;
                 public int heuristics = 0;
                 public int distance = INFINITELY_FAR;
@@ -540,10 +749,8 @@ public class MakarShevchenko {
                     Cell cellCopy = new Cell();
                     cellCopy.isUnderPerception = this.isUnderPerception;
                     cellCopy.container.addAll(this.container);
-                    cellCopy.isVisited = this.isVisited;
                     cellCopy.heuristics = this.heuristics;
                     cellCopy.distance = this.distance;
-                    cellCopy.isPossibleToVisit = this.isPossibleToVisit;
                     cellCopy.isSeen = this.isSeen;
                     return cellCopy;
                 }
@@ -551,6 +758,16 @@ public class MakarShevchenko {
                 public boolean contains(Object obj) {
                     for (Object item: this.container) {
                         if (item.equals(obj)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+
+                public boolean contains(Vector<Object> objs) {
+                    // return if cell contains at least one object from objs
+                    for (Object obj: objs) {
+                        if (contains(obj)) {
                             return true;
                         }
                     }
@@ -571,6 +788,19 @@ public class MakarShevchenko {
         public Pair(T1 first_, T2 second_) {
             this.first = first_;
             this.second = second_;
+        }
+
+        public Pair<T1, T2> clone() {
+            Pair<T1, T2> clone = new Pair<>(this.first, this.second);
+            return clone;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Pair<?, ?> pair = (Pair<?, ?>) o;
+            return Objects.equals(first, pair.first) && Objects.equals(second, pair.second);
         }
     }
 }
