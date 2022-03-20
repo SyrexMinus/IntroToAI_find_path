@@ -1,5 +1,6 @@
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.lang.management.BufferPoolMXBean;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -11,7 +12,8 @@ import static java.lang.Math.min;
 public class MakarShevchenko {
     public static void main(String[] args) {
         try {
-            BookFinding solver = new BookFinding(new BookFinding.AStarSolver(1));
+            // BookFinding solver = new BookFinding(new BookFinding.AStarSolver(1));
+            BookFinding solver = new BookFinding(new BookFinding.BacktrackingSolver());
             System.out.print("Type anything if you want to insert the positions of agents and perception scenario " +
                     "manually, \notherwise (map will be generated automatically) just hit enter\n> ");
             BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
@@ -563,11 +565,406 @@ public class MakarShevchenko {
         public static class BacktrackingSolver implements Solver {
 
             @Override
-            public Vector<Object> solve(Map map, Pair<Integer, Integer> initActorPos, Pair<Integer, Integer> exitPos,
+            public Vector<Object> solve(Map initMap, Pair<Integer, Integer> initActorPos, Pair<Integer, Integer> exitPos,
                                         int perception) {
                 // Output: [String name, boolean isSuccess, \
                 // Vector<Pair<Integer, Integer>> path, Long spentTimeNs]
+
+                Instant previous = Instant.now();
+
+                // init map
+                Map map = initMap.clone();
+                map.calculateHeuristics(exitPos);
+
+                // try to discovery book or cloak from init
+                Vector<Object> objsToFind = new Vector<>();
+                objsToFind.add(CLOAK);
+                objsToFind.add(BOOK);
+                Vector<Object> isDead_path_resultMap = findPathToObj(objsToFind, initActorPos, map,
+                                                            false, perception);
+                Vector<Pair<Integer, Integer>> pathToCloakOrBook =
+                        (Vector<Pair<Integer, Integer>>) isDead_path_resultMap.elementAt(1);
+                map = (Map) isDead_path_resultMap.elementAt(2);
+                Pair<Integer, Integer> objCoords = pathToCloakOrBook.lastElement();
+
+                if (map.getCell(objCoords).contains(CLOAK)) {
+                    // find optimal path to cloak from init
+                    isDead_path_resultMap = findPathToCoords(objCoords, initActorPos, map, false, perception);
+                    pathToCloakOrBook = (Vector<Pair<Integer, Integer>>) isDead_path_resultMap.elementAt(1);
+                    map = (Map) isDead_path_resultMap.elementAt(2);
+
+                    // try to discovery book from init, cloak
+                    objsToFind = new Vector<>();
+                    objsToFind.add(BOOK);
+                    isDead_path_resultMap = findPathToObj(objsToFind, objCoords, map, true, perception);
+                    Vector<Pair<Integer, Integer>> pathCloakToBook =
+                            (Vector<Pair<Integer, Integer>>) isDead_path_resultMap.elementAt(1);
+                    map = (Map) isDead_path_resultMap.elementAt(2);
+                    Pair<Integer, Integer> prevObjCoords = objCoords;
+                    objCoords = pathCloakToBook.lastElement();
+
+                    if (map.getCell(objCoords).contains(BOOK)) {
+                        // find optimal path to book from init, cloak
+                        isDead_path_resultMap =
+                                findPathToCoords(objCoords, prevObjCoords, map, true, perception);
+                        pathCloakToBook = (Vector<Pair<Integer, Integer>>) isDead_path_resultMap.elementAt(1);
+                        map = (Map) isDead_path_resultMap.elementAt(2);
+
+                        // find optimal path to exit from init, cloak, book
+                        prevObjCoords = objCoords;
+                        objCoords = exitPos;
+                        isDead_path_resultMap =
+                                findPathToCoords(objCoords, prevObjCoords, map, true, perception);
+                        Vector<Pair<Integer, Integer>> pathCloakBookToExit =
+                                (Vector<Pair<Integer, Integer>>) isDead_path_resultMap.elementAt(1);
+
+                        if (map.getCell(pathCloakBookToExit.lastElement()).contains(EXIT)) {
+                            // init, cloak, book, exit
+                            Instant current = Instant.now();
+                            Long spentTimeNs = ChronoUnit.NANOS.between(previous, current);
+
+                            Vector<Pair<Integer, Integer>> path = new Vector<>();
+                            path.addAll(pathToCloakOrBook);
+                            pathCloakToBook.remove(0);
+                            path.addAll(pathCloakToBook);
+                            pathCloakBookToExit.remove(0);
+                            path.addAll(pathCloakBookToExit);
+
+                            Vector<Object> result = new Vector<>();
+                            result.add("Backtracking");
+                            result.add(true);
+                            result.add(path);
+                            result.add(spentTimeNs);
+                            return result;
+                        }
+
+                        // init, cloak, book, death or no way
+                        Instant current = Instant.now();
+                        Long spentTimeNs = ChronoUnit.NANOS.between(previous, current);
+
+                        Vector<Pair<Integer, Integer>> path = new Vector<>();
+                        path.addAll(pathToCloakOrBook);
+                        pathCloakToBook.remove(0);
+                        path.addAll(pathCloakToBook);
+                        pathCloakBookToExit.remove(0);
+                        path.addAll(pathCloakBookToExit);
+
+                        Vector<Object> result = new Vector<>();
+                        result.add("Backtracking");
+                        result.add(false);
+                        result.add(path);
+                        result.add(spentTimeNs);
+                        return result;
+                    }
+
+                    // init, cloak, death or no way
+                    Instant current = Instant.now();
+                    Long spentTimeNs = ChronoUnit.NANOS.between(previous, current);
+
+                    Vector<Pair<Integer, Integer>> path = new Vector<>();
+                    path.addAll(pathToCloakOrBook);
+                    pathCloakToBook.remove(0);
+                    path.addAll(pathCloakToBook);
+
+                    Vector<Object> result = new Vector<>();
+                    result.add("Backtracking");
+                    result.add(false);
+                    result.add(path);
+                    result.add(spentTimeNs);
+                    return result;
+                }
+                else if (map.getCell(objCoords).contains(BOOK)) {
+                    // find optimal path to book from init
+                    isDead_path_resultMap = findPathToCoords(objCoords, initActorPos, map, false, perception);
+                    pathToCloakOrBook = (Vector<Pair<Integer, Integer>>) isDead_path_resultMap.elementAt(1);
+                    map = (Map) isDead_path_resultMap.elementAt(2);
+
+                    // try to discovery cloak or exit from book
+                    objsToFind = new Vector<>();
+                    objsToFind.add(CLOAK);
+                    objsToFind.add(EXIT);
+                    isDead_path_resultMap = findPathToObj(objsToFind, objCoords, map,
+                            false, perception);
+                    Vector<Pair<Integer, Integer>> pathBookToCloakOrExit =
+                            (Vector<Pair<Integer, Integer>>) isDead_path_resultMap.elementAt(1);
+                    map = (Map) isDead_path_resultMap.elementAt(2);
+                    Pair<Integer, Integer> prevObjCoords = objCoords;
+                    objCoords = pathBookToCloakOrExit.lastElement();
+
+                    if (map.getCell(objCoords).contains(CLOAK)) {
+                        // find optimal path to cloak from book
+                        isDead_path_resultMap =
+                                findPathToCoords(objCoords, prevObjCoords, map, false, perception);
+                        pathBookToCloakOrExit =
+                                (Vector<Pair<Integer, Integer>>) isDead_path_resultMap.elementAt(1);
+                        map = (Map) isDead_path_resultMap.elementAt(2);
+
+                        // find optimal path to exit from book, cloak
+                        prevObjCoords = objCoords;
+                        objCoords = exitPos;
+                        isDead_path_resultMap =
+                                findPathToCoords(objCoords, prevObjCoords, map, true, perception);
+                        Vector<Pair<Integer, Integer>> pathBookCloakToExit =
+                                (Vector<Pair<Integer, Integer>>) isDead_path_resultMap.elementAt(1);
+
+                        if (map.getCell(pathBookCloakToExit.lastElement()).contains(EXIT)) {
+                            // init, book, cloak, exit
+                            Instant current = Instant.now();
+                            Long spentTimeNs = ChronoUnit.NANOS.between(previous, current);
+
+                            Vector<Pair<Integer, Integer>> path = new Vector<>();
+                            path.addAll(pathToCloakOrBook);
+                            pathBookToCloakOrExit.remove(0);
+                            path.addAll(pathBookToCloakOrExit);
+                            pathBookCloakToExit.remove(0);
+                            path.addAll(pathBookCloakToExit);
+
+                            Vector<Object> result = new Vector<>();
+                            result.add("Backtracking");
+                            result.add(true);
+                            result.add(path);
+                            result.add(spentTimeNs);
+                            return result;
+                        }
+
+                        // init, book, cloak, death or no way
+                        Instant current = Instant.now();
+                        Long spentTimeNs = ChronoUnit.NANOS.between(previous, current);
+
+                        Vector<Pair<Integer, Integer>> path = new Vector<>();
+                        path.addAll(pathToCloakOrBook);
+                        pathBookToCloakOrExit.remove(0);
+                        path.addAll(pathBookToCloakOrExit);
+                        pathBookCloakToExit.remove(0);
+                        path.addAll(pathBookCloakToExit);
+
+                        Vector<Object> result = new Vector<>();
+                        result.add("Backtracking");
+                        result.add(false);
+                        result.add(path);
+                        result.add(spentTimeNs);
+                        return result;
+                    }
+                    else if (map.getCell(objCoords).contains(EXIT)) {
+                        // find optimal path to exit from book
+                        isDead_path_resultMap =
+                                findPathToCoords(objCoords, prevObjCoords, map, false, perception);
+                        pathBookToCloakOrExit =
+                                (Vector<Pair<Integer, Integer>>) isDead_path_resultMap.elementAt(1);
+
+                        // init, book, exit
+                        Instant current = Instant.now();
+                        Long spentTimeNs = ChronoUnit.NANOS.between(previous, current);
+
+                        Vector<Pair<Integer, Integer>> path = new Vector<>();
+                        path.addAll(pathToCloakOrBook);
+                        pathBookToCloakOrExit.remove(0);
+                        path.addAll(pathBookToCloakOrExit);
+
+                        Vector<Object> result = new Vector<>();
+                        result.add("Backtracking");
+                        result.add(true);
+                        result.add(path);
+                        result.add(spentTimeNs);
+                        return result;
+                    }
+
+                    // init, book, death or no way
+                    Instant current = Instant.now();
+                    Long spentTimeNs = ChronoUnit.NANOS.between(previous, current);
+
+                    Vector<Pair<Integer, Integer>> path = new Vector<>();
+                    path.addAll(pathToCloakOrBook);
+                    pathBookToCloakOrExit.remove(0);
+                    path.addAll(pathBookToCloakOrExit);
+
+                    Vector<Object> result = new Vector<>();
+                    result.add("Backtracking");
+                    result.add(false);
+                    result.add(path);
+                    result.add(spentTimeNs);
+                    return result;
+                }
+
+                // init, death or no way
+                Instant current = Instant.now();
+                Long spentTimeNs = ChronoUnit.NANOS.between(previous, current);
+
+                Vector<Object> result = new Vector<>();
+                result.add("Backtracking");
+                result.add(false);
+                result.add(pathToCloakOrBook);
+                result.add(spentTimeNs);
+                return result;
+            }
+
+            private Vector<Object> findPathToObj(Vector<Object> objsToFind, Pair<Integer, Integer> initPos, Map map,
+                                                 boolean hasCloak, int perception) {
+                // returns [boolean isDead, Vector<Pair<Integer, Integer>> path, Map resultMap]
+                return findPathToObjOrCoords(objsToFind, null, initPos, map, hasCloak, perception,
+                        false);
+            }
+
+            private Pair<Integer, Integer> chooseNextCellCoords(Pair<Integer, Integer> currentPos, Map map,
+                                                                boolean hasCloak, Vector<Vector<Boolean>> isVisited,
+                                                                boolean considerUnsafeCells) {
+                // return safest and closest to dest unvisited cell from neighborhood, if all the neighbors are visited
+                // or guaranteed lead to die, then null is returned
+
+                Vector<Pair<Integer, Integer>> safeCellsCoords = new Vector<>();
+                Vector<Pair<Integer, Integer>> unknownCellsCoords = new Vector<>();
+                Vector<Pair<Integer, Integer>> unsafeCellsCoords = new Vector<>();
+                for (int y = currentPos.second - 1; y <= currentPos.second + 1 && y < map.sizeY; y++) {
+                    if (y >= 0) {
+                        for (int x = currentPos.first - 1; x <= currentPos.first + 1 && x < map.sizeX; x++) {
+                            if (x >= 0 && !(x == currentPos.first && y == currentPos.second)) {
+                                if (!isVisited.elementAt(y).elementAt(x)) {
+                                    Map.Cell cell = map.getCell(x, y);
+                                    Pair<Integer, Integer> cellPos = new Pair<>(x, y);
+                                    if (cell.isSeen) {
+                                        if (cell.isUnderPerception) {
+                                            if (hasCloak) {
+                                                if (cell.isBorderPerception || cell.isVisited) {
+                                                    safeCellsCoords.add(cellPos);
+                                                }
+                                                else {
+                                                    unsafeCellsCoords.add(cellPos);
+                                                }
+                                            }
+                                        }
+                                        else {
+                                            safeCellsCoords.add(cellPos);
+                                        }
+                                    }
+                                    else {
+                                        unknownCellsCoords.add(cellPos);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Vector<Pair<Integer, Integer>> interestingCells = null;
+                if (safeCellsCoords.size() > 0) {
+                    interestingCells = safeCellsCoords;
+                }
+                else if (unknownCellsCoords.size() > 0) {
+                    interestingCells = unknownCellsCoords;
+                }
+                else if (unsafeCellsCoords.size() > 0 && considerUnsafeCells) {
+                    interestingCells = unsafeCellsCoords;
+                }
+                if (interestingCells != null) {
+                    Pair<Integer, Integer> minCellPos = interestingCells.elementAt(0);
+                    int minCellCost = map.getCell(minCellPos).score();
+                    for (int i = 1; i < interestingCells.size(); i++) {
+                        Pair<Integer, Integer> cellPos = interestingCells.elementAt(i);
+                        Map.Cell cell = map.getCell(cellPos);
+                        int cellCost = cell.score();
+                        if (cellCost < minCellCost) {
+                            minCellPos = cellPos;
+                            minCellCost = cellCost;
+                        }
+                    }
+                    return minCellPos;
+                }
                 return null;
+            }
+
+            private boolean isActorDead(Map.Cell currentCell, boolean hasCloak) {
+                return (currentCell.contains(FILCH) || currentCell.contains(CAT) ||
+                        (!hasCloak && currentCell.isUnderPerception));
+            }
+
+            private Vector<Object> findPathToCoords(Pair<Integer, Integer> destPos,
+                                                                    Pair<Integer, Integer> initPos, Map map,
+                                                                    boolean hasCloak, int perception) {
+                // return [boolean isDead, Vector<Pair<Integer, Integer>> path, Map resultMap]
+                return findPathToObjOrCoords(null, destPos, initPos, map, hasCloak, perception,
+                               false);
+            }
+
+            private Vector<Object> findPathToObjOrCoords(Vector<Object> objsToFind, Pair<Integer, Integer> destPos,
+                                                         Pair<Integer, Integer> initPos, Map map, boolean hasCloak,
+                                                         int perception, boolean visitUnsafeCells) {
+                // returns [boolean isDead, Vector<Pair<Integer, Integer>> path, Map resultMap]
+
+                if (objsToFind == null) {
+                    objsToFind = new Vector<>();
+                }
+
+                Map resultMap = map.clone();
+                if (destPos != null) {
+                    resultMap.calculateHeuristics(destPos);
+                }
+                Vector<Vector<Boolean>> isVisited = new Vector<>();
+                for (int y = 0; y < resultMap.sizeY; y++) {
+                    Vector<Boolean> mapRow = new Vector<>();
+                    for (int x = 0; x < resultMap.sizeX; x++) {
+                        mapRow.add(false);
+                    }
+                    isVisited.add(mapRow);
+                }
+                isVisited.elementAt(initPos.second).setElementAt(true, initPos.first);
+                Vector<Pair<Integer, Integer>> path = new Vector<>();
+                path.add(initPos);
+                Map.Cell activeCell = resultMap.getCell(initPos);
+                Pair<Integer, Integer> activeCellPos = path.lastElement();
+                // interact with cell
+                resultMap.visitCell(initPos, perception);
+                if (isActorDead(activeCell, hasCloak)) {
+                    // game over
+                    Vector<Object> result = new Vector<>();
+                    result.add(true);
+                    result.add(path);
+                    result.add(resultMap);
+                    return result;
+                }
+
+                while (!activeCell.contains(objsToFind) && !activeCellPos.equals(destPos)) {
+                    // choose next cell
+                    Pair<Integer, Integer> nextActiveCellPos =
+                            chooseNextCellCoords(activeCellPos, resultMap, hasCloak, isVisited, visitUnsafeCells);
+                    if (nextActiveCellPos == null) {
+                        // no more steps possible from active cell
+                        if (path.size() > 1) {
+                            path.removeElementAt(path.size() - 1);
+                            continue;
+                        }
+                        // no more steps are possible at all
+                        if (hasCloak && !visitUnsafeCells) {
+                            // try to find ignoring risks
+                            return findPathToObjOrCoords(objsToFind, destPos, initPos, resultMap, hasCloak, perception,
+                                    true);
+                        }
+                        Vector<Object> result = new Vector<>();
+                        result.add(false);
+                        result.add(path);
+                        result.add(resultMap);
+                        return result;
+                    }
+                    activeCellPos = nextActiveCellPos;
+                    activeCell = resultMap.getCell(activeCellPos);
+                    path.add(activeCellPos);
+                    // interact with next cell
+                    resultMap.visitCell(activeCellPos, perception);
+                    isVisited.elementAt(activeCellPos.second).setElementAt(true, activeCellPos.first);
+                    if (isActorDead(activeCell, hasCloak)) {
+                        // game over
+                        Vector<Object> result = new Vector<>();
+                        result.add(true);
+                        result.add(path);
+                        result.add(resultMap);
+                        return result;
+                    }
+                }
+
+                // success
+                Vector<Object> result = new Vector<>();
+                result.add(false);
+                result.add(path);
+                result.add(resultMap);
+                return result;
             }
         }
 
@@ -649,6 +1046,16 @@ public class MakarShevchenko {
                 }
             }
 
+            public void calculateHeuristics(Pair<Integer, Integer> goalCoords) {
+                for (int y = 0; y < sizeY; y++) {
+                    for (int x = 0; x < sizeX; x++) {
+                        int dx = abs(x - goalCoords.first);
+                        int dy = abs(y - goalCoords.second);
+                        getCell(x, y).heuristics = max(dx, dy);
+                    }
+                }
+            }
+
             public void addEnemy(Object enemy, int perception, int x, int y) {
                 this.addItem(enemy, x, y);
                 for (int y_ = y - perception; y_ <= y + perception; y_++) {
@@ -689,10 +1096,10 @@ public class MakarShevchenko {
 
             public void visitCell(int x, int y, int perception) {
                 if (perception == 1) {
-                    for (int y_ = y - 1; y_ <= y + 1; y_++) {
-                        if (y_ >= 0 && y_ < this.sizeY) {
-                            for (int x_ = x - 1; x_ <= x + 1; x_++) {
-                                if (x_ >= 0 && x_ < this.sizeX) {
+                    for (int y_ = y - 1; y_ <= y + 1 && y_ < this.sizeY; y_++) {
+                        if (y_ >= 0) {
+                            for (int x_ = x - 1; x_ <= x + 1 && x_ < this.sizeX; x_++) {
+                                if (x_ >= 0) {
                                     this.getCell(x_, y_).isSeen = true;
                                 }
                             }
@@ -727,6 +1134,7 @@ public class MakarShevchenko {
                     }
                     this.getCell(x, y).isSeen = true;
                 }
+                this.getCell(x, y).isVisited = true;
             }
 
             public void visitCell(Pair<Integer, Integer> pos, int perception) {
@@ -737,6 +1145,8 @@ public class MakarShevchenko {
                 public static int INFINITELY_FAR = 9999;
                 public boolean isUnderPerception = false;
                 public boolean isSeen = false;
+                public boolean isBorderPerception = false;
+                public boolean isVisited = false;
                 public int heuristics = 0;
                 public int distance = INFINITELY_FAR;
                 public Vector<Object> container;
@@ -749,6 +1159,7 @@ public class MakarShevchenko {
                     Cell cellCopy = new Cell();
                     cellCopy.isUnderPerception = this.isUnderPerception;
                     cellCopy.container.addAll(this.container);
+                    cellCopy.isBorderPerception = this.isBorderPerception;
                     cellCopy.heuristics = this.heuristics;
                     cellCopy.distance = this.distance;
                     cellCopy.isSeen = this.isSeen;
