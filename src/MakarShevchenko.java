@@ -47,7 +47,10 @@ public class MakarShevchenko {
             }
             solver.readInput(inputReader);
             if (inputLine.length() == 0) {
-                System.out.printf("Perception: %d\n", solver.actorPerception);
+                Scanner in = new Scanner(System.in);
+                int actorPerception = in.nextInt();
+                solver.actorPerception = actorPerception;
+                in.close();
             }
             if (!solver.isConfigValid()) {
                 throw new Exception("Invalid input. Enter valid data.");
