@@ -11,6 +11,7 @@ import static java.lang.Math.max;
 /**
  * MakarShevchenko is the class that solves Book Finding problem by
  * using Backtracking and A* algorithms.
+ *
  * @author      Makar Shevchenko
  * @version     20 Mar 2022
  */
@@ -18,10 +19,12 @@ public class MakarShevchenko {
     /**
      * The main function of the MakarShevchenko class, which specifies
      * the execution mode of the solution: autotests or manual run.
+     *
      * @param args command line arguments. Not used.
      */
     public static void main(String[] args) {
-        autoTests(10000);
+        manualRun();
+        //autoTests(10000);
     }
 
     /**
@@ -31,7 +34,7 @@ public class MakarShevchenko {
      * the validity of the input is checked. The solutions are calculated
      * by two algorithms separately: backtracking and A*.
      */
-    private static void manualRun() {
+    public static void manualRun() {
         try {
             BookFinding solver = new BookFinding(new BookFinding.BacktrackingSolver());
             System.out.print("Type anything if you want to insert the positions of agents and perception scenario " +
@@ -59,10 +62,15 @@ public class MakarShevchenko {
     }
 
     /**
-     * One of the program execution modes, autotests. Run testsNumber
-     * @param testsNumber
+     * One of the program execution modes, autotests. Run testsNumber number
+     * of tests and prints collected statistics on different search algorithms.
+     * Search algorithms variants: Backtracking and A* with 1 and 2 variants of
+     * perceptions each. Statistics collected: successes number, total path
+     * (steps), and total time (ns).
+     *
+     * @param testsNumber number of tests to be run
      */
-    private static void autoTests(int testsNumber) {
+    public static void autoTests(int testsNumber) {
         BookFinding.Solver backtracking = new BookFinding.BacktrackingSolver();
         BookFinding.Solver aStar = new BookFinding.AStarSolver(1);
         BookFinding solver = new BookFinding(backtracking);
@@ -253,11 +261,23 @@ public class MakarShevchenko {
         return result;
     }
 
-    private static class BookFinding {
+    /**
+     * BookFinding class encapsulate data and methods for solving Book Finding
+     * problem. Methods provide human-readable interface for interacting with
+     * {@link Solver} and {@link InputReader}.
+     */
+    public static class BookFinding {
         Map initMap;
-        int actorPerception;
+        /**
+         * Perception distance of the actor (in steps).
+         */
+        public int actorPerception;
         int initActorX, initActorY;
         int exitX, exitY;
+        /**
+         * solver is used to solve the Book Finding problem on a given map and
+         * perception.
+         */
         public Solver solver;
 
         static String FILCH = "fitch";
@@ -267,10 +287,21 @@ public class MakarShevchenko {
         static String CLOAK = "cloak";
         static String EXIT = "exit";
 
+        /**
+         * Constructor for a BookFinding class that initializes solver.
+         *
+         * @param solver solver for the problem
+         */
         public BookFinding(Solver solver) {
             this.solver = solver;
         }
 
+        /**
+         * Initializes the conditions for the problem: map and an actor
+         * perception.
+         *
+         * @param inputReader reader that provides the class with an input
+         */
         public void readInput(InputReader inputReader) {
             Vector<Object> input = inputReader.readInput();
             this.initMap = (Map) input.get(0);
@@ -283,6 +314,12 @@ public class MakarShevchenko {
             this.exitY = exitPos.second;
         }
 
+        /**
+         * Checks whether the initial problem conditions are valid. Checks the
+         * map, actor position and variant of the perception.
+         *
+         * @return is the problem conditions are valid
+         */
         public boolean isConfigValid() {
             if (!isMapValid(this.initMap) ||
                 // "Possible scenarios are 1 and 2"
@@ -294,6 +331,18 @@ public class MakarShevchenko {
             return true;
         }
 
+        /**
+         * Returns a solution to the Book Finding problem and technical
+         * information about the solution. The solution is the outcome of the
+         * game and the path from the actor's starting position to the book and
+         * then exit. Technical information includes the name of the algorithm
+         * used, the time spent on the solution, and the map of the game.
+         *
+         * @return [String name, boolean isSuccess,
+         *          Vector< Pair< Integer, Integer>> path, Long spentTimeNs,
+         *          Map initMap] - a solution and the technical information
+         *          about the solution
+         */
         public Vector<Object> getOutputValues() {
             // Output: [String name, boolean isSuccess, \
             // Vector<Pair<Integer, Integer>> path, Long spentTimeNs, Map initMap]
@@ -303,7 +352,14 @@ public class MakarShevchenko {
             return result;
         }
 
-        private static boolean isMapValid(Map map) {
+        /**
+         * Function checks whether the map satisfy input requirements of
+         * the Book Finding problem.
+         *
+         * @param map map to be checked
+         * @return whether the map satisfy problem requirements
+         */
+        public static boolean isMapValid(Map map) {
             for (int y = 0; y < map.sizeY; y++) {
                 for (int x = 0; x < map.sizeX; x++) {
                     Map.Cell cell = map.getCell(x, y);
@@ -335,19 +391,57 @@ public class MakarShevchenko {
             return true;
         }
 
+        /**
+         * Solver interface describes the interface for Book Finding problem
+         * solvers. It describes the initial conditions known to solvers and
+         * the output format.
+         */
         public interface Solver {
+            /**
+             * The solve method returns the solution to the Book Finding
+             * problem for the given conditions and technical information
+             * about the solution. The path describes the steps from the
+             * starting position to the book and then to the exit. The actor
+             * may not find the path or be caught, so the outcome of the game
+             * is also returned. Technical information includes the name of the
+             * algorithm used, the time spent on the solution, and the map of
+             * the game.
+             *
+             * @param map map of the game
+             * @param initActorPos initial position of the actor
+             * @param exitPos position of the exit
+             * @param perception perception distance of the actor
+             * @return [String name, boolean isSuccess, Vector< Pair< Integer,
+             * Integer>> path, Long spentTimeNs] - a solution and the technical
+             * information about the solution
+             */
             Vector<Object> solve(Map map, Pair<Integer, Integer> initActorPos, Pair<Integer, Integer> exitPos,
-                                 int perception); // Output: [String name, boolean isSuccess, \
-                                                  // Vector<Pair<Integer, Integer>> path, Long spentTimeNs]
+                                 int perception);
         }
 
+        /**
+         * AStarSolver encapsulates methods for solving Book Finding problem
+         * using A* path finding algorithm. A* finds first-optimal path using
+         * Dijksta algorithm enhanced by heuristics on distance of path +
+         * max(dx, dy) from target.
+         */
         public static class AStarSolver implements Solver {
             private int stepSize;
 
+            /**
+             * Constructor initializes algorithm-specific information.
+             *
+             * @param stepSize cost of the step to measure the total cost of
+             *                 the cell. Affects the choice of cell for the
+             *                 next step.
+             */
             public AStarSolver(int stepSize) {
                 this.stepSize = stepSize;
             }
 
+            /**
+             * Solves Book Finding problem using A* path finding algorithm.
+             */
             @Override
             public Vector<Object> solve(Map initMap, Pair<Integer, Integer> initActorPos, Pair<Integer, Integer> exitPos,
                               int perception) {
@@ -674,8 +768,18 @@ public class MakarShevchenko {
             }
         }
 
+        /**
+         * BacktrackingSolver encapsulates methods for solving Book Finding
+         * problem using Backtracking path finding algorithm. This
+         * implementation uses classical backtracking enhanced with heuristic
+         * on max(dx, dy) from target.
+         */
         public static class BacktrackingSolver implements Solver {
 
+            /**
+             * Solves Book Finding problem using Backtracking path finding
+             * algorithm enhanced with heuristics.
+             */
             @Override
             public Vector<Object> solve(Map initMap, Pair<Integer, Integer> initActorPos, Pair<Integer, Integer> exitPos,
                                         int perception) {
@@ -1082,10 +1186,25 @@ public class MakarShevchenko {
             }
         }
 
-        private static class Map {
+        /**
+         * Map class describes the game space and encapsulates methods for
+         * interacting with it. Game space is a matrix of cells.
+         */
+        public static class Map {
             Vector<Vector<Cell>> map;
+            /**
+             * sizeX and sizeY represent the size of the first and second
+             * dimensions of the map.
+             */
             public int sizeX, sizeY;
 
+            /**
+             * Constructor for the Map that initializes the map and sets sizeX
+             * and sizeY.
+             *
+             * @param sizeY size of the second dimension
+             * @param sizeX size of the first dimension
+             */
             public Map(int sizeY, int sizeX) {
                 this.sizeX = sizeX;
                 this.sizeY = sizeY;
@@ -1099,6 +1218,13 @@ public class MakarShevchenko {
                 }
             }
 
+            /**
+             * Method calculate heuristic for each cell of the map by the
+             * max(dx, dy) formula. Distances dx and dy is calculated as
+             * the difference between cell coordinates and goal position.
+             *
+             * @param goalCoords position of the goal
+             */
             public void calculateHeuristics(Pair<Integer, Integer> goalCoords) {
                 for (int y = 0; y < sizeY; y++) {
                     for (int x = 0; x < sizeX; x++) {
@@ -1109,6 +1235,15 @@ public class MakarShevchenko {
                 }
             }
 
+            /**
+             * Method adds an enemy to the map and sets the neighbor cells as
+             * under his/her perception.
+             *
+             * @param enemy enemy that stay on given position
+             * @param perception perception distance of the enemy
+             * @param x x-coordinate of the enemy position
+             * @param y y-coordinate of the enemy position
+             */
             public void addEnemy(Object enemy, int perception, int x, int y) {
                 this.addItem(enemy, x, y);
                 for (int y_ = y - perception; y_ <= y + perception; y_++) {
@@ -1122,18 +1257,43 @@ public class MakarShevchenko {
                 }
             }
 
+            /**
+             * Method adds an item to the map at the given coordinates.
+             *
+             * @param item item to be placed
+             * @param x x-coordinate of the item position
+             * @param y y-coordinate of the item position
+             */
             public void addItem(Object item, int x, int y) {
                 this.getCell(x, y).container.add(item);
             }
 
+            /**
+             * Returns the cell at the given coordinates.
+             *
+             * @param x x-coordinate of the cell position
+             * @param y y-coordinate of the cell position
+             * @return cell at the given coordinates
+             */
             public Cell getCell(int x, int y) {
                 return this.map.elementAt(y).elementAt(x);
             }
 
+            /**
+             * Returns the cell at the given position.
+             *
+             * @param pos position of the cell
+             * @return cell at the given position
+             */
             public Cell getCell(Pair<Integer, Integer> pos) {
                 return getCell(pos.first, pos.second);
             }
 
+            /**
+             * Returns the exact clone of the map.
+             *
+             * @return the exact clone of the map.
+             */
             public Map clone() {
                 Map mapCopy = new Map(sizeY, sizeX);
                 for (int y = 0; y < sizeY; y++) {
@@ -1147,6 +1307,14 @@ public class MakarShevchenko {
                 return mapCopy;
             }
 
+            /**
+             * Method marks the cell at the given position as visited and mark
+             * the neighbor cells at the perception as seen.
+             *
+             * @param x x-coordinate of the cell position
+             * @param y y-coordinate of the cell position
+             * @param perception perception type of the actor
+             */
             public void visitCell(int x, int y, int perception) {
                 if (perception == 1) {
                     for (int y_ = y - 1; y_ <= y + 1 && y_ < this.sizeY; y_++) {
@@ -1210,24 +1378,68 @@ public class MakarShevchenko {
                 }
             }
 
+            /**
+             * Method marks the cell at the given position as visited and mark
+             * the neighbor cells at the perception as seen.
+             *
+             * @param pos position to visit
+             * @param perception perception type of the actor
+             */
             public void visitCell(Pair<Integer, Integer> pos, int perception) {
                 visitCell(pos.first, pos.second, perception);
             }
 
-            private static class Cell {
+            /**
+             * Cell class describes map cell. It encapsulates objects
+             * contained, information about abstract distance, heuristic and
+             * about visit, seen and perception.
+             */
+            public static class Cell {
+                /**
+                 * Constant that represent infinity distance.
+                 */
                 public static int INFINITELY_FAR = 9999;
+                /**
+                 * If the cell is under perception of an enemy.
+                 */
                 public boolean isUnderPerception = false;
+                /**
+                 * If the cell was seen by the actor.
+                 */
                 public boolean isSeen = false;
+                /**
+                 * If the cell is under perception and is on the border
+                 */
                 public boolean isBorderPerception = false;
+                /**
+                 * If the cell was visited by actor before.
+                 */
                 public boolean isVisited = false;
+                /**
+                 * Abstract heuristic value.
+                 */
                 public int heuristics = 0;
+                /**
+                 * Abstract distance to the cell.
+                 */
                 public int distance = INFINITELY_FAR;
+                /**
+                 * Container for the objects inside the cell.
+                 */
                 public Vector<Object> container;
 
+                /**
+                 * Constructor for the cell that initialozes empty container.
+                 */
                 public Cell() {
                     this.container = new Vector<>();
                 }
 
+                /**
+                 * Returns the exact clone of the cell.
+                 *
+                 * @return the exact clone of the cell
+                 */
                 public Cell clone() {
                     Cell cellCopy = new Cell();
                     cellCopy.isUnderPerception = this.isUnderPerception;
@@ -1239,6 +1451,12 @@ public class MakarShevchenko {
                     return cellCopy;
                 }
 
+                /**
+                 * Returns if the equal object is contained inside the cell.
+                 *
+                 * @param obj object to check
+                 * @return if the equal object is contained inside the cell
+                 */
                 public boolean contains(Object obj) {
                     for (Object item: this.container) {
                         if (item.equals(obj)) {
@@ -1248,6 +1466,14 @@ public class MakarShevchenko {
                     return false;
                 }
 
+                /**
+                 * Returns if at least one object is equal to one contained
+                 * inside the cell.
+                 *
+                 * @param objs objects to check
+                 * @return if at least one object is equal to one contained
+                 * inside the cell
+                 */
                 public boolean contains(Vector<Object> objs) {
                     // return if cell contains at least one object from objs
                     for (Object obj: objs) {
@@ -1258,6 +1484,11 @@ public class MakarShevchenko {
                     return false;
                 }
 
+                /**
+                 * Returns the sum of heuristic and the distance.
+                 *
+                 * @return the sum of heuristic and the distance
+                 */
                 public int score() {
                     return this.heuristics + this.distance;
                 }
@@ -1265,17 +1496,36 @@ public class MakarShevchenko {
         }
     }
 
+    /**
+     * InputReader interface describes interface for the input readers ot the
+     * Book Finding problem. It describes the format of output of methods.
+     */
     public interface InputReader {
-        Vector<Object> readInput();  // output: [Map initMap, int actorPerception, \
-        //          Pair<Integer, Integer> initActorPos, \
-        //          Pair<Integer, Integer> exitPos]
+        /**
+         * Method should return initial conditions for the Book Finding
+         * problem. Initial conditions include the initialized map with enemies
+         * and objects, actor's perception, his initial position and position
+         * of the exit.
+         *
+         * @return [Map initMap, int actorPerception,
+         *         Pair< Integer, Integer> initActorPos,
+         *         Pair< Integer, Integer> exitPos] - initial conditions for
+         *         the Book Finding problem
+         */
+        Vector<Object> readInput();
     }
 
+    /**
+     * InputReader that reads the initial condition from the console.
+     */
     public static class ConsoleInputReader implements InputReader {
 
+        /**
+         * Returns initial conditions read from the console.
+         */
         @Override
         public Vector<Object> readInput() {
-            Vector<Object> result = new Vector<Object>();
+            Vector<Object> result = new Vector<>();
 
             BookFinding.Map initMap = new BookFinding.Map(9, 9);
 
@@ -1310,19 +1560,25 @@ public class MakarShevchenko {
 
             result.add(initMap);
             result.add(actorPerception);
-            result.add(new Pair<Integer, Integer>(initActorX, initActorY));
-            result.add(new Pair<Integer, Integer>(exitX, exitY));
+            result.add(new Pair<>(initActorX, initActorY));
+            result.add(new Pair<>(exitX, exitY));
 
             return result;
         }
     }
 
+    /**
+     * InputReader that make initial conditions automatically.
+     */
     public static class AutogenInputReader implements InputReader {
 
         private int getRandomNumber(int min, int max) {
             return (int) Math.round((Math.random() * (max - min)) + min);
         }
 
+        /**
+         * Returns initial conditions generated automatically.
+         */
         @Override
         public Vector<Object> readInput() {
             Vector<Object> result = new Vector<>();
@@ -1363,20 +1619,46 @@ public class MakarShevchenko {
         }
     }
 
-    private static class Pair<T1, T2> {
+    /**
+     * Pair class is a container for two objects.
+     *
+     * @param <T1> type of the first object
+     * @param <T2> type of the second object
+     */
+    public static class Pair<T1, T2> {
+        /**
+         * First object contained.
+         */
         public T1 first;
+        /**
+         * Second object contained.
+         */
         public T2 second;
-        public Pair() {}
+
+        /**
+         * Constructor for the pair that save first and second objects.
+         */
         public Pair(T1 first_, T2 second_) {
             this.first = first_;
             this.second = second_;
         }
 
+        /**
+         * Returns exact copy of the pair.
+         *
+         * @return exact copy of the pair
+         */
         public Pair<T1, T2> clone() {
             Pair<T1, T2> clone = new Pair<>(this.first, this.second);
             return clone;
         }
 
+        /**
+         * Returns if the object is equal to the pair.
+         *
+         * @param o object to comare
+         * @return if the object is equal to the pair
+         */
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
