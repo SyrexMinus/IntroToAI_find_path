@@ -7,29 +7,250 @@ import java.util.*;
 import static java.lang.Math.abs;
 import static java.lang.Math.max;
 
+
+/**
+ * MakarShevchenko is the class that solves Book Finding problem by
+ * using Backtracking and A* algorithms.
+ * @author      Makar Shevchenko
+ * @version     20 Mar 2022
+ */
 public class MakarShevchenko {
+    /**
+     * The main function of the MakarShevchenko class, which specifies
+     * the execution mode of the solution: autotests or manual run.
+     * @param args command line arguments. Not used.
+     */
     public static void main(String[] args) {
+        autoTests(10000);
+    }
+
+    /**
+     * One of the program execution modes, manual run. Process user input and
+     * output a solutions to Book Finding problem. User can choose type of
+     * creating the map: manually or automatically. With manual input,
+     * the validity of the input is checked. The solutions are calculated
+     * by two algorithms separately: backtracking and A*.
+     */
+    private static void manualRun() {
         try {
-            // BookFinding solver = new BookFinding(new BookFinding.AStarSolver(1));
             BookFinding solver = new BookFinding(new BookFinding.BacktrackingSolver());
             System.out.print("Type anything if you want to insert the positions of agents and perception scenario " +
-                    "manually, \notherwise (map will be generated automatically) just hit enter\n> ");
+                             "manually, \notherwise (map will be generated automatically) just hit enter\n> ");
             BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
             String inputLine = reader.readLine();
-            BookFinding.InputReader inputReader = new BookFinding.AutogenInputReader();
+            InputReader inputReader = new AutogenInputReader();
             if (inputLine.length() > 0) {
-                inputReader = new BookFinding.ConsoleInputReader();
+                inputReader = new ConsoleInputReader();
             }
             solver.readInput(inputReader);
+            if (inputLine.length() == 0) {
+                System.out.printf("Perception: %d\n", solver.actorPerception);
+            }
             if (!solver.isConfigValid()) {
                 throw new Exception("Invalid input. Enter valid data.");
             }
-            solver.findPath();
-            solver.printOutput();
+            printOutput(solver.getOutputValues());
+            solver.solver = new BookFinding.AStarSolver(1);
+            printOutput(solver.getOutputValues());
         }
         catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * One of the program execution modes, autotests. Run testsNumber
+     * @param testsNumber
+     */
+    private static void autoTests(int testsNumber) {
+        BookFinding.Solver backtracking = new BookFinding.BacktrackingSolver();
+        BookFinding.Solver aStar = new BookFinding.AStarSolver(1);
+        BookFinding solver = new BookFinding(backtracking);
+        solver.readInput(new AutogenInputReader());
+        long successes_a_1 = 0;
+        long successes_b_1 = 0;
+        long successes_a_2 = 0;
+        long successes_b_2 = 0;
+        long length_a_1 = 0;
+        long length_b_1 = 0;
+        long length_a_2 = 0;
+        long length_b_2 = 0;
+        long time_a_1 = 0;
+        long time_b_1 = 0;
+        long time_a_2 = 0;
+        long time_b_2 = 0;
+
+        for (int i = 0; i < testsNumber; i++) {
+            solver.readInput(new AutogenInputReader());
+            solver.solver = backtracking;
+            solver.actorPerception = 1;
+            Vector<Object> outputValues = solver.getOutputValues();
+            boolean isSuccess = (boolean) outputValues.get(1);
+            successes_b_1 += isSuccess ? 1 : 0;
+            Vector<Pair<Integer, Integer>> path = (Vector<Pair<Integer, Integer>>) outputValues.get(2);
+            length_b_1 += path.size();
+            Long spentTimeNs = ((Long) outputValues.get(3))/1000;
+            time_b_1 += spentTimeNs;
+
+            solver.solver = backtracking;
+            solver.actorPerception = 2;
+            outputValues = solver.getOutputValues();
+            isSuccess = (boolean) outputValues.get(1);
+            successes_b_2 += isSuccess ? 1 : 0;
+            path = (Vector<Pair<Integer, Integer>>) outputValues.get(2);
+            length_b_2 += path.size();
+            spentTimeNs = ((Long) outputValues.get(3))/1000;
+            time_b_2 += spentTimeNs;
+
+            solver.solver = aStar;
+            solver.actorPerception = 1;
+            outputValues = solver.getOutputValues();
+            isSuccess = (boolean) outputValues.get(1);
+            successes_a_1 += isSuccess ? 1 : 0;
+            path = (Vector<Pair<Integer, Integer>>) outputValues.get(2);
+            length_a_1 += path.size();
+            spentTimeNs = ((Long) outputValues.get(3))/1000;
+            time_a_1 += spentTimeNs;
+
+            solver.solver = aStar;
+            solver.actorPerception = 2;
+            outputValues = solver.getOutputValues();
+            isSuccess = (boolean) outputValues.get(1);
+            successes_a_2 += isSuccess ? 1 : 0;
+            path = (Vector<Pair<Integer, Integer>>) outputValues.get(2);
+            length_a_2 += path.size();
+            spentTimeNs = ((Long) outputValues.get(3))/1000;
+            time_a_2 += spentTimeNs;
+        }
+
+        System.out.println("Tests results:");
+        System.out.printf("Tests number: %d\n", testsNumber);
+        System.out.printf("Successes number Backtracking (variant 1): %d\n", successes_b_1);
+        System.out.printf("Successes number Backtracking (variant 2): %d\n", successes_b_2);
+        System.out.printf("Successes number A* (variant 1):           %d\n", successes_a_1);
+        System.out.printf("Successes number A* (variant 2):           %d\n", successes_a_2);
+        System.out.printf("Total path (steps) length Backtracking (variant 1): %d\n", length_b_1);
+        System.out.printf("Total path (steps) length Backtracking (variant 2): %d\n", length_b_2);
+        System.out.printf("Total path (steps) length A* (variant 1):           %d\n", length_a_1);
+        System.out.printf("Total path (steps) length A* (variant 2):           %d\n", length_a_2);
+        System.out.printf("Total time (ns) Backtracking (variant 1): %d000\n", time_b_1);
+        System.out.printf("Total time (ns) Backtracking (variant 2): %d000\n", time_b_2);
+        System.out.printf("Total time (ns) A* (variant 1):           %d000\n", time_a_1);
+        System.out.printf("Total time (ns) A* (variant 2):           %d000\n", time_a_2);
+    }
+
+    private static void printOutput(Vector<Object> outputValues) {
+        String name = (String) outputValues.get(0);
+        boolean isSuccess = (boolean) outputValues.get(1);
+        Vector<Pair<Integer, Integer>> path = (Vector<Pair<Integer, Integer>>) outputValues.get(2);
+        Long spentTimeNs = (Long) outputValues.get(3);
+        BookFinding.Map initMap = (BookFinding.Map) outputValues.get(4);
+
+        System.out.printf("Name of the algorithm: %s\n", name);
+
+        String outcome = "Lose";
+        if (isSuccess) {
+            outcome = "Win";
+        }
+        System.out.printf("Outcome: %s\n", outcome);
+
+        System.out.printf("The number of steps algorithm took to reach exit door: %d\n", path.size());
+
+        System.out.print("The path on the map: ");
+        for (Pair<Integer, Integer> coordinate: path) {
+            System.out.printf("[%d,%d] ", coordinate.first, coordinate.second);
+        }
+        System.out.println();
+
+        System.out.println("Path is highlighted on the map:");
+        printMap(initMap, path);
+        System.out.println("Initial map:");
+        printMap(initMap, new Vector<>());
+
+        System.out.printf("Time taken by the algorithm to reach the exit door: %d ns\n", spentTimeNs);
+    }
+
+    private static void printMap(BookFinding.Map map, Vector<Pair<Integer, Integer>> path) {
+        String actor = "🤠";
+        String cat = "\uD83D\uDE3E";
+        String fitch = "\uD83E\uDDD9\u200D";
+        String book = "\uD83D\uDCD3";
+        String cloak = "\uD83E\uDDE5";
+        String perception = "\uD83D\uDED1";
+        String step = "\uD83E\uDDB6";
+        String empty = "▪️";
+        String mix = "\uD83C\uDF81";
+        String exit = "\uD83D\uDEAA";
+        for (int y = map.sizeY - 1; y >= 0; y--) {
+            System.out.printf("%s ", numToEmoji(y));
+            for (int x = 0; x < map.sizeX; x++) {
+                BookFinding.Map.Cell cell = map.getCell(x, y);
+                boolean isVisited = false;
+                for (Pair<Integer, Integer> coordinate: path) {
+                    if (coordinate.first == x && coordinate.second == y) {
+                        isVisited = true;
+                        break;
+                    }
+                }
+                if (isVisited) {
+                    System.out.printf("%s", step);
+                }
+                else if (cell.container.size() > 1) {
+                    System.out.printf("%s", mix);
+                }
+                else if (cell.contains(BookFinding.EXIT)) {
+                    System.out.printf("%s", exit);
+                }
+                else if (cell.contains(BookFinding.BOOK)) {
+                    System.out.printf("%s", book);
+                }
+                else if (cell.contains(BookFinding.CLOAK)) {
+                    System.out.printf("%s", cloak);
+                }
+                else if (cell.contains(BookFinding.ACTOR)) {
+                    System.out.printf("%s", actor);
+                }
+                else if (cell.contains(BookFinding.CAT)) {
+                    System.out.printf("%s", cat);
+                }
+                else if (cell.contains(BookFinding.FILCH)) {
+                    System.out.printf("%s", fitch);
+                }
+                else if (cell.isUnderPerception) {
+                    System.out.printf("%s", perception);
+                }
+                else {
+                    System.out.printf("%s", empty);
+                }
+            }
+            System.out.println();
+        }
+        System.out.print("\uD83D\uDD3C ");
+        for (int x = 0; x < map.sizeX; x++) {
+            System.out.print(numToEmoji(x));
+        }
+        System.out.println();
+    }
+
+    private static String numToEmoji(int num) {
+        String result = "";
+        String numStr = String.valueOf(num);
+        for (int i = 0; i < numStr.length(); i++) {
+            int digit = Character.getNumericValue(numStr.charAt(i));
+            Vector<String> emojiSym = new Vector<>();
+            emojiSym.add("0️⃣");
+            emojiSym.add("1️⃣");
+            emojiSym.add("2️⃣");
+            emojiSym.add("3️⃣");
+            emojiSym.add("4️⃣");
+            emojiSym.add("5️⃣");
+            emojiSym.add("6️⃣");
+            emojiSym.add("7️⃣");
+            emojiSym.add("8️⃣");
+            emojiSym.add("9️⃣");
+            result += emojiSym.elementAt(digit);
+        }
+        return result;
     }
 
     private static class BookFinding {
@@ -37,7 +258,7 @@ public class MakarShevchenko {
         int actorPerception;
         int initActorX, initActorY;
         int exitX, exitY;
-        Solver solver;
+        public Solver solver;
 
         static String FILCH = "fitch";
         static String CAT = "cat";
@@ -63,7 +284,7 @@ public class MakarShevchenko {
         }
 
         public boolean isConfigValid() {
-            if (!isMapValid() ||
+            if (!isMapValid(this.initMap) ||
                 // "Possible scenarios are 1 and 2"
                 !(this.actorPerception == 1 || this.actorPerception == 2) ||
                 // "You start from bottom left"
@@ -73,132 +294,25 @@ public class MakarShevchenko {
             return true;
         }
 
-        public void findPath() {
-
-        }
-
-        public void printOutput() {
-            Vector<Object> outputValues = this.solver.solve(this.initMap, new Pair<>(initActorX, initActorY),
-                                                            new Pair<>(exitX, exitY), actorPerception);
-            String name = (String) outputValues.get(0);
-            boolean isSuccess = (boolean) outputValues.get(1);
-            Vector<Pair<Integer, Integer>> path = (Vector<Pair<Integer, Integer>>) outputValues.get(2);
-            Long spentTimeNs = (Long) outputValues.get(3);
-
-            System.out.printf("Name of the algorithm: %s\n", name);
-
-            String outcome = "Lose";
-            if (isSuccess) {
-                outcome = "Win";
-            }
-            System.out.printf("Outcome: %s\n", outcome);
-
-            System.out.printf("The number of steps algorithm took to reach exit door: %d\n", path.size());
-
-            System.out.print("The path on the map: ");
-            for (Pair<Integer, Integer> coordinate: path) {
-                System.out.printf("[%d,%d] ", coordinate.first, coordinate.second);
-            }
-            System.out.println();
-
-            System.out.println("Path is highlighted on the map:");
-            String actor = "🤠";
-            String cat = "\uD83D\uDE3E";
-            String fitch = "\uD83E\uDDD9\u200D";
-            String book = "\uD83D\uDCD3";
-            String cloak = "\uD83E\uDDE5";
-            String perception = "\uD83D\uDED1";
-            String step = "\uD83E\uDDB6";
-            String empty = "▪️";
-            String mix = "\uD83C\uDF81";
-            String exit = "\uD83D\uDEAA";
-            for (int y = this.initMap.sizeY - 1; y >= 0; y--) {
-                System.out.printf("%s ", numToEmoji(y));
-                for (int x = 0; x < this.initMap.sizeX; x++) {
-                    Map.Cell cell = this.initMap.getCell(x, y);
-                    boolean isVisited = false;
-                    for (Pair<Integer, Integer> coordinate: path) {
-                        if ((int) coordinate.first == x && (int) coordinate.second == y) {
-                            isVisited = true;
-                            break;
-                        }
-                    }
-                    if (isVisited) {
-                        System.out.printf("%s", step);
-                    }
-                    else if (cell.container.size() > 1) {
-                        System.out.printf("%s", mix);
-                    }
-                    else if (cell.contains(EXIT)) {
-                        System.out.printf("%s", exit);
-                    }
-                    else if (cell.contains(BOOK)) {
-                        System.out.printf("%s", book);
-                    }
-                    else if (cell.contains(CLOAK)) {
-                        System.out.printf("%s", cloak);
-                    }
-                    else if (cell.contains(ACTOR)) {
-                        System.out.printf("%s", actor);
-                    }
-                    else if (cell.contains(CAT)) {
-                        System.out.printf("%s", cat);
-                    }
-                    else if (cell.contains(FILCH)) {
-                        System.out.printf("%s", fitch);
-                    }
-                    else if (cell.isUnderPerception) {
-                        System.out.printf("%s", perception);
-                    }
-                    else {
-                        System.out.printf("%s", empty);
-                    }
-                }
-                System.out.println();
-            }
-            System.out.print("\uD83D\uDD3C ");
-            for (int x = 0; x < this.initMap.sizeX; x++) {
-                System.out.print(numToEmoji(x));
-            }
-            System.out.println();
-            System.out.printf("Time taken by the algorithm to reach the exit door: %d ns\n", spentTimeNs);
-        }
-
-        private String numToEmoji(int num) {
-            String result = "";
-            String numStr = String.valueOf(num);
-            for (int i = 0; i < numStr.length(); i++) {
-                int digit = Character.getNumericValue(numStr.charAt(i));
-                Vector<String> emojiSym = new Vector<>();
-                emojiSym.add("0️⃣");
-                emojiSym.add("1️⃣");
-                emojiSym.add("2️⃣");
-                emojiSym.add("3️⃣");
-                emojiSym.add("4️⃣");
-                emojiSym.add("5️⃣");
-                emojiSym.add("6️⃣");
-                emojiSym.add("7️⃣");
-                emojiSym.add("8️⃣");
-                emojiSym.add("9️⃣");
-                result += emojiSym.elementAt(digit);
-            }
+        public Vector<Object> getOutputValues() {
+            // Output: [String name, boolean isSuccess, \
+            // Vector<Pair<Integer, Integer>> path, Long spentTimeNs, Map initMap]
+            Vector<Object> result = solver.solve(initMap, new Pair<>(initActorX, initActorY),
+                                                 new Pair<>(exitX, exitY), actorPerception);
+            result.add(initMap);
             return result;
         }
 
-        private boolean isMapValid() {
-            for (int y = 0; y < this.initMap.sizeY; y++) {
-                for (int x = 0; x < this.initMap.sizeX; x++) {
-                    Map.Cell cell = this.initMap.getCell(x, y);
+        private static boolean isMapValid(Map map) {
+            for (int y = 0; y < map.sizeY; y++) {
+                for (int x = 0; x < map.sizeX; x++) {
+                    Map.Cell cell = map.getCell(x, y);
                     boolean hasExit = false;
-                    boolean hasInspector = false;
                     boolean hasBook = false;
                     boolean hasCloak = false;
                     for (Object item: cell.container) {
                         if (item.equals(EXIT)) {
                             hasExit = true;
-                        }
-                        if (item.equals(CAT) || item.equals(FILCH)) {
-                            hasInspector = true;
                         }
                         if (item.equals(BOOK)) {
                             hasBook = true;
@@ -968,67 +1082,6 @@ public class MakarShevchenko {
             }
         }
 
-        public interface InputReader {
-            Vector<Object> readInput();  // output: [Map initMap, int actorPerception, \
-            //          Pair<Integer, Integer> initActorPos, \
-            //          Pair<Integer, Integer> exitPos]
-        }
-
-        public static class ConsoleInputReader implements InputReader {
-
-            @Override
-            public Vector<Object> readInput() {
-                Vector<Object> result = new Vector<Object>();
-
-                Map initMap = new Map(9, 9);
-
-                Scanner scanner = new Scanner(System.in);
-                String inputStr = scanner.nextLine();
-                inputStr = inputStr.replaceAll("\\[", " ");
-                inputStr = inputStr.replaceAll("]", " ");
-                inputStr = inputStr.replaceAll(",", " ");
-                Scanner scanner1 = new Scanner(inputStr);
-                int initActorX = scanner1.nextInt();
-                int initActorY = scanner1.nextInt();
-                int filchX = scanner1.nextInt();
-                int filchY = scanner1.nextInt();
-                int catX = scanner1.nextInt();
-                int catY = scanner1.nextInt();
-                int bookX = scanner1.nextInt();
-                int bookY = scanner1.nextInt();
-                int cloakX = scanner1.nextInt();
-                int cloakY = scanner1.nextInt();
-                int exitX = scanner1.nextInt();
-                int exitY = scanner1.nextInt();
-                int actorPerception = scanner.nextInt();
-                scanner.close();
-                scanner1.close();
-
-                initMap.addEnemy(FILCH, 2, filchX, filchY);
-                initMap.addEnemy(CAT, 1, catX, catY);
-                initMap.addItem(ACTOR, initActorX, initActorY);
-                initMap.addItem(BOOK, bookX, bookY);
-                initMap.addItem(CLOAK, cloakX, cloakY);
-                initMap.addItem(EXIT, exitX, exitY);
-
-                result.add(initMap);
-                result.add(actorPerception);
-                result.add(new Pair<Integer, Integer>(initActorX, initActorY));
-                result.add(new Pair<Integer, Integer>(exitX, exitY));
-
-                return result;
-            }
-        }
-
-        public static class AutogenInputReader implements InputReader {
-
-            @Override
-            public Vector<Object> readInput() {
-                // TODO
-                return null;
-            }
-        }
-
         private static class Map {
             Vector<Vector<Cell>> map;
             public int sizeX, sizeY;
@@ -1209,6 +1262,104 @@ public class MakarShevchenko {
                     return this.heuristics + this.distance;
                 }
             }
+        }
+    }
+
+    public interface InputReader {
+        Vector<Object> readInput();  // output: [Map initMap, int actorPerception, \
+        //          Pair<Integer, Integer> initActorPos, \
+        //          Pair<Integer, Integer> exitPos]
+    }
+
+    public static class ConsoleInputReader implements InputReader {
+
+        @Override
+        public Vector<Object> readInput() {
+            Vector<Object> result = new Vector<Object>();
+
+            BookFinding.Map initMap = new BookFinding.Map(9, 9);
+
+            Scanner scanner = new Scanner(System.in);
+            String inputStr = scanner.nextLine();
+            inputStr = inputStr.replaceAll("\\[", " ");
+            inputStr = inputStr.replaceAll("]", " ");
+            inputStr = inputStr.replaceAll(",", " ");
+            Scanner scanner1 = new Scanner(inputStr);
+            int initActorX = scanner1.nextInt();
+            int initActorY = scanner1.nextInt();
+            int filchX = scanner1.nextInt();
+            int filchY = scanner1.nextInt();
+            int catX = scanner1.nextInt();
+            int catY = scanner1.nextInt();
+            int bookX = scanner1.nextInt();
+            int bookY = scanner1.nextInt();
+            int cloakX = scanner1.nextInt();
+            int cloakY = scanner1.nextInt();
+            int exitX = scanner1.nextInt();
+            int exitY = scanner1.nextInt();
+            int actorPerception = scanner.nextInt();
+            scanner.close();
+            scanner1.close();
+
+            initMap.addEnemy(BookFinding.FILCH, 2, filchX, filchY);
+            initMap.addEnemy(BookFinding.CAT, 1, catX, catY);
+            initMap.addItem(BookFinding.ACTOR, initActorX, initActorY);
+            initMap.addItem(BookFinding.BOOK, bookX, bookY);
+            initMap.addItem(BookFinding.CLOAK, cloakX, cloakY);
+            initMap.addItem(BookFinding.EXIT, exitX, exitY);
+
+            result.add(initMap);
+            result.add(actorPerception);
+            result.add(new Pair<Integer, Integer>(initActorX, initActorY));
+            result.add(new Pair<Integer, Integer>(exitX, exitY));
+
+            return result;
+        }
+    }
+
+    public static class AutogenInputReader implements InputReader {
+
+        private int getRandomNumber(int min, int max) {
+            return (int) Math.round((Math.random() * (max - min)) + min);
+        }
+
+        @Override
+        public Vector<Object> readInput() {
+            Vector<Object> result = new Vector<>();
+            BookFinding.Map initMap;
+            int initActorY = 0;
+            int initActorX = 0;
+            int actorPerception = getRandomNumber(1, 2);
+            int exitX;
+            int exitY;
+
+            do {
+                initMap = new BookFinding.Map(9, 9);
+                int filchX = getRandomNumber(0, 8);
+                int filchY = getRandomNumber(0, 8);
+                int catX = getRandomNumber(0, 8);
+                int catY = getRandomNumber(0, 8);
+                int bookX = getRandomNumber(0, 8);
+                int bookY = getRandomNumber(0, 8);
+                int cloakX = getRandomNumber(0, 8);
+                int cloakY = getRandomNumber(0, 8);
+                exitX = getRandomNumber(0, 8);
+                exitY = getRandomNumber(0, 8);
+
+                initMap.addEnemy(BookFinding.FILCH, 2, filchX, filchY);
+                initMap.addEnemy(BookFinding.CAT, 1, catX, catY);
+                initMap.addItem(BookFinding.ACTOR, initActorX, initActorY);
+                initMap.addItem(BookFinding.BOOK, bookX, bookY);
+                initMap.addItem(BookFinding.CLOAK, cloakX, cloakY);
+                initMap.addItem(BookFinding.EXIT, exitX, exitY);
+
+            } while (!BookFinding.isMapValid(initMap));
+
+            result.add(initMap);
+            result.add(actorPerception);
+            result.add(new Pair<Integer, Integer>(initActorX, initActorY));
+            result.add(new Pair<Integer, Integer>(exitX, exitY));
+            return result;
         }
     }
 
