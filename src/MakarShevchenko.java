@@ -1,13 +1,11 @@
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
-import java.lang.management.BufferPoolMXBean;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 import static java.lang.Math.abs;
 import static java.lang.Math.max;
-import static java.lang.Math.min;
 
 public class MakarShevchenko {
     public static void main(String[] args) {
@@ -209,7 +207,7 @@ public class MakarShevchenko {
                             hasCloak = true;
                         }
                     }
-                    if (hasExit && (hasInspector || hasBook)) {
+                    if (hasExit && (cell.isUnderPerception || hasBook)) {
                         return false;
                     }
                     if (hasBook && cell.isUnderPerception) {
@@ -929,6 +927,8 @@ public class MakarShevchenko {
                         // no more steps possible from active cell
                         if (path.size() > 1) {
                             path.removeElementAt(path.size() - 1);
+                            activeCellPos = path.lastElement();
+                            activeCell = resultMap.getCell(activeCellPos);
                             continue;
                         }
                         // no more steps are possible at all
@@ -1100,7 +1100,7 @@ public class MakarShevchenko {
                         if (y_ >= 0) {
                             for (int x_ = x - 1; x_ <= x + 1 && x_ < this.sizeX; x_++) {
                                 if (x_ >= 0) {
-                                    this.getCell(x_, y_).isSeen = true;
+                                    makeCellSeen(x_, y_);
                                 }
                             }
                         }
@@ -1112,11 +1112,11 @@ public class MakarShevchenko {
                         if (x_ >= 0 && x_ < this.sizeX) {
                             int y_ = y - 2;
                             if (y_ >= 0 && y_ < this.sizeY) {
-                                this.getCell(x_, y_).isSeen = true;
+                                makeCellSeen(x_, y_);
                             }
                             y_ = y + 2;
                             if (y_ >= 0 && y_ < this.sizeY) {
-                                this.getCell(x_, y_).isSeen = true;
+                                makeCellSeen(x_, y_);
                             }
                         }
 
@@ -1124,17 +1124,37 @@ public class MakarShevchenko {
                         if (y_ >= 0 && y_ < this.sizeY) {
                             x_ = x - 2;
                             if (x_ >= 0 && x_ < this.sizeX) {
-                                this.getCell(x_, y_).isSeen = true;
+                                makeCellSeen(x_, y_);
                             }
                             x_ = x + 2;
                             if (x_ >= 0 && x_ < this.sizeX) {
-                                this.getCell(x_, y_).isSeen = true;
+                                makeCellSeen(x_, y_);
                             }
                         }
                     }
-                    this.getCell(x, y).isSeen = true;
+                    makeCellSeen(x, y);
                 }
                 this.getCell(x, y).isVisited = true;
+            }
+
+            private void makeCellSeen(int x, int y) {
+                Cell cell = getCell(x, y);
+                cell.isSeen = true;
+                if (cell.isUnderPerception) {
+                    for (int y_ = y - 1; y_ <= y + 1 && y_ < sizeY; y_++) {
+                        if (y_ >= 0) {
+                            for (int x_ = x - 1; x_ <= x + 1 && x_ < sizeX; x_++) {
+                                if (x_ >= 0 && !(x_ == x && y_ == y)) {
+                                    Cell neighbor = getCell(x_, y_);
+                                    if (neighbor.isSeen && !neighbor.isUnderPerception) {
+                                        cell.isBorderPerception = true;
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             public void visitCell(Pair<Integer, Integer> pos, int perception) {
